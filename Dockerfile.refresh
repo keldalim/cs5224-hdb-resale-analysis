@@ -1,0 +1,14 @@
+FROM public.ecr.aws/lambda/python:3.12
+
+COPY requirements-refresh.txt ${LAMBDA_TASK_ROOT}
+
+RUN pip install --no-cache-dir -r requirements-refresh.txt
+
+RUN mkdir -p ${LAMBDA_TASK_ROOT}/src
+
+COPY src/__init__.py ${LAMBDA_TASK_ROOT}/src/__init__.py
+COPY src/data_processing.py ${LAMBDA_TASK_ROOT}/src/data_processing.py
+COPY src/data_source.py ${LAMBDA_TASK_ROOT}/src/data_source.py
+COPY src/refresh_handler.py ${LAMBDA_TASK_ROOT}/src/refresh_handler.py
+
+CMD ["src.refresh_handler.lambda_handler"]

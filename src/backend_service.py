@@ -24,10 +24,62 @@ REQUIRED_REQUEST_FIELDS = [
 ]
 
 
+VALID_TOWNS = {
+    "ANG MO KIO",
+    "BEDOK",
+    "BISHAN",
+    "BUKIT BATOK",
+    "BUKIT MERAH",
+    "BUKIT PANJANG",
+    "BUKIT TIMAH",
+    "CENTRAL AREA",
+    "CHOA CHU KANG",
+    "CLEMENTI",
+    "GEYLANG",
+    "HOUGANG",
+    "JURONG EAST",
+    "JURONG WEST",
+    "KALLANG/WHAMPOA",
+    "MARINE PARADE",
+    "PASIR RIS",
+    "PUNGGOL",
+    "QUEENSTOWN",
+    "SEMBAWANG",
+    "SENGKANG",
+    "SERANGOON",
+    "TAMPINES",
+    "TOA PAYOH",
+    "WOODLANDS",
+    "YISHUN"
+}
+
+
+VALID_FLAT_TYPES = {
+    "1 ROOM",
+    "2 ROOM",
+    "3 ROOM",
+    "4 ROOM",
+    "5 ROOM",
+    "EXECUTIVE",
+    "MULTI-GENERATION"
+}
+
+
 def validate_request(payload):
     """
     Validate the incoming resale assessment request.
+
+    Raises
+    ------
+    ValueError
+        If the request is missing required fields or
+        contains invalid values.
     """
+
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "Request body must be a JSON object"
+        )
 
     missing_fields = [
         field
@@ -41,27 +93,195 @@ def validate_request(payload):
             + ", ".join(missing_fields)
         )
 
-    if float(payload["floor_area_sqm"]) <= 0:
+    # -----------------------------------------
+    # Required string fields
+    # -----------------------------------------
+
+    string_fields = [
+        "month",
+        "town",
+        "flat_type",
+        "block",
+        "street_name",
+        "storey_range",
+        "flat_model",
+        "remaining_lease"
+    ]
+
+    for field in string_fields:
+
+        value = payload.get(field)
+
+        if value is None:
+            raise ValueError(
+                f"{field} cannot be empty"
+            )
+
+        if not str(value).strip():
+            raise ValueError(
+                f"{field} cannot be empty"
+            )
+
+    # -----------------------------------------
+    # Month
+    # -----------------------------------------
+
+    try:
+        pd.to_datetime(
+            str(payload["month"]).strip(),
+            format="%Y-%m"
+        )
+
+    except (TypeError, ValueError):
+
+        raise ValueError(
+            "month must be in YYYY-MM format"
+        )
+
+    # -----------------------------------------
+    # Town
+    # -----------------------------------------
+
+    town = (
+        str(payload["town"])
+        .strip()
+        .upper()
+    )
+
+    if town not in VALID_TOWNS:
+        raise ValueError(
+            f"Unsupported town: {town}"
+        )
+
+    # -----------------------------------------
+    # Flat type
+    # -----------------------------------------
+
+    flat_type = (
+        str(payload["flat_type"])
+        .strip()
+        .upper()
+    )
+
+    if flat_type not in VALID_FLAT_TYPES:
+        raise ValueError(
+            f"Unsupported flat_type: {flat_type}"
+        )
+
+    # -----------------------------------------
+    # Floor area
+    # -----------------------------------------
+
+    try:
+        floor_area = float(
+            payload["floor_area_sqm"]
+        )
+
+    except (TypeError, ValueError):
+
+        raise ValueError(
+            "floor_area_sqm must be numeric"
+        )
+
+    if floor_area <= 0:
         raise ValueError(
             "floor_area_sqm must be positive"
         )
 
-    lease_year = int(
-        payload["lease_commence_date"]
-    )
+    # -----------------------------------------
+    # Lease commencement year
+    # -----------------------------------------
+
+    try:
+        lease_year = int(
+            payload["lease_commence_date"]
+        )
+
+    except (TypeError, ValueError):
+
+        raise ValueError(
+            "lease_commence_date must be numeric"
+        )
 
     if lease_year < 1900 or lease_year > 2100:
         raise ValueError(
             "Invalid lease_commence_date"
         )
 
-    get_storey_mid(
-        payload["storey_range"]
-    )
+    # -----------------------------------------
+    # Storey range
+    # -----------------------------------------
 
-    parse_remaining_lease(
-        payload["remaining_lease"]
-    )
+    try:
+        get_storey_mid(
+            str(
+                payload["storey_range"]
+            ).strip()
+        )
+
+    except Exception:
+
+        raise ValueError(
+            "Invalid storey_range"
+        )
+
+    # -----------------------------------------
+    # Remaining lease
+    # -----------------------------------------
+
+    try:
+        parse_remaining_lease(
+            str(
+                payload["remaining_lease"]
+            ).strip()
+        )
+
+    except Exception:
+
+        raise ValueError(
+            "Invalid remaining_lease"
+        )
+
+    # -----------------------------------------
+    # Asking price
+    # Optional, but if supplied it must be valid.
+    # -----------------------------------------
+
+    if "asking_price" in payload:
+
+        asking_price = payload[
+            "asking_price"
+        ]
+
+        if (
+            asking_price is None
+            or (
+                isinstance(
+                    asking_price,
+                    str
+                )
+                and not asking_price.strip()
+            )
+        ):
+            raise ValueError(
+                "asking_price cannot be empty"
+            )
+
+        try:
+            asking_price = float(
+                asking_price
+            )
+
+        except (TypeError, ValueError):
+
+            raise ValueError(
+                "asking_price must be numeric"
+            )
+
+        if asking_price <= 0:
+            raise ValueError(
+                "asking_price must be positive"
+            )
 
     return True
 
@@ -78,38 +298,41 @@ def build_target_row(payload):
     )
 
     month = pd.to_datetime(
-        payload["month"],
+        str(
+            payload["month"]
+        ).strip(),
         format="%Y-%m"
     )
 
     target = {
+
         "month":
             month,
 
         "town":
             str(
                 payload["town"]
-            ).strip(),
+            ).strip().upper(),
 
         "flat_type":
             str(
                 payload["flat_type"]
-            ).strip(),
+            ).strip().upper(),
 
         "block":
             str(
                 payload["block"]
-            ).strip(),
+            ).strip().upper(),
 
         "street_name":
             str(
                 payload["street_name"]
-            ).strip(),
+            ).strip().upper(),
 
         "storey_range":
             str(
                 payload["storey_range"]
-            ).strip(),
+            ).strip().upper(),
 
         "floor_area_sqm":
             float(
@@ -123,7 +346,9 @@ def build_target_row(payload):
 
         "lease_commence_date":
             int(
-                payload["lease_commence_date"]
+                payload[
+                    "lease_commence_date"
+                ]
             ),
 
         "remaining_lease":
@@ -173,32 +398,47 @@ def build_dynamodb_query_keys(
         f"{target_row['flat_type']}"
     )
 
-    target_month = target_row["month"]
+    target_month = (
+        target_row["month"]
+    )
 
     start_month = (
         target_month
-        - pd.DateOffset(months=12)
+        - pd.DateOffset(
+            months=12
+        )
     )
 
     end_month = (
         target_month
-        - pd.DateOffset(months=1)
+        - pd.DateOffset(
+            months=1
+        )
     )
 
     start_key = (
-        start_month.strftime("%Y-%m")
+        start_month.strftime(
+            "%Y-%m"
+        )
         + "#"
     )
 
     end_key = (
-        end_month.strftime("%Y-%m")
+        end_month.strftime(
+            "%Y-%m"
+        )
         + "#\uffff"
     )
 
     return {
-        "town_flat_type": partition_key,
-        "start_key": start_key,
-        "end_key": end_key
+        "town_flat_type":
+            partition_key,
+
+        "start_key":
+            start_key,
+
+        "end_key":
+            end_key
     }
 
 
@@ -207,8 +447,16 @@ def query_dynamodb_history(
     target_row,
     region_name="ap-southeast-1"
 ):
-    query_keys = build_dynamodb_query_keys(
-        target_row
+    """
+    Query the DynamoDB table for transactions
+    matching the target town and flat type
+    within the preceding 12 months.
+    """
+
+    query_keys = (
+        build_dynamodb_query_keys(
+            target_row
+        )
     )
 
     dynamodb = boto3.resource(
@@ -222,30 +470,90 @@ def query_dynamodb_history(
 
     response = table.query(
         KeyConditionExpression=(
-            Key("town_flat_type").eq(
-                query_keys["town_flat_type"]
+            Key(
+                "town_flat_type"
+            ).eq(
+                query_keys[
+                    "town_flat_type"
+                ]
             )
             &
-            Key("month_flat_id").between(
-                query_keys["start_key"],
-                query_keys["end_key"]
+            Key(
+                "month_flat_id"
+            ).between(
+                query_keys[
+                    "start_key"
+                ],
+                query_keys[
+                    "end_key"
+                ]
             )
         )
     )
 
-    return response.get(
+    items = response.get(
         "Items",
         []
     )
 
+    # Defensive pagination support.
+    # Normally the 12-month partition slice is small,
+    # but DynamoDB Query can paginate at 1 MB.
+    while (
+        "LastEvaluatedKey"
+        in response
+    ):
 
-def dynamodb_items_to_dataframe(items):
+        response = table.query(
+            KeyConditionExpression=(
+                Key(
+                    "town_flat_type"
+                ).eq(
+                    query_keys[
+                        "town_flat_type"
+                    ]
+                )
+                &
+                Key(
+                    "month_flat_id"
+                ).between(
+                    query_keys[
+                        "start_key"
+                    ],
+                    query_keys[
+                        "end_key"
+                    ]
+                )
+            ),
+            ExclusiveStartKey=(
+                response[
+                    "LastEvaluatedKey"
+                ]
+            )
+        )
+
+        items.extend(
+            response.get(
+                "Items",
+                []
+            )
+        )
+
+    return items
+
+
+def dynamodb_items_to_dataframe(
+    items
+):
     """
-    Convert DynamoDB query results into the dataframe
-    format expected by resale_service.py.
+    Convert DynamoDB query results into the
+    dataframe format expected by
+    resale_service.py.
     """
 
-    history_df = pd.DataFrame(items)
+    history_df = pd.DataFrame(
+        items
+    )
 
     if history_df.empty:
         return history_df
@@ -261,17 +569,62 @@ def dynamodb_items_to_dataframe(items):
     ]
 
     for col in numeric_cols:
+
         if col in history_df.columns:
-            history_df[col] = pd.to_numeric(
-                history_df[col]
+
+            history_df[col] = (
+                pd.to_numeric(
+                    history_df[col]
+                )
             )
 
     if "month" in history_df.columns:
-        history_df["month"] = pd.to_datetime(
-            history_df["month"]
+
+        history_df[
+            "month"
+        ] = pd.to_datetime(
+            history_df[
+                "month"
+            ]
         )
 
     return history_df
+
+
+def build_empty_response():
+    """
+    Return a controlled insufficient-evidence
+    response when no historical transactions
+    are available for a valid request.
+    """
+
+    return {
+        "evidence_sufficient":
+            False,
+
+        "evidence": {
+            "candidate_count":
+                0,
+
+            "top5_avg_score":
+                0.0,
+
+            "top5_strong_count":
+                0,
+
+            "top1_score":
+                0.0
+        },
+
+        "comparables":
+            [],
+
+        "estimated_price":
+            None,
+
+        "prediction_interval":
+            None
+    }
 
 
 def process_resale_request(
@@ -280,36 +633,56 @@ def process_resale_request(
     features,
     evidence_rule,
     interval_margin,
-    table_name="hdb-resale-app-cs5224",
-    region_name="ap-southeast-1"
+    table_name=(
+        "hdb-resale-app-cs5224"
+    ),
+    region_name=(
+        "ap-southeast-1"
+    )
 ):
     """
     Validate request, query DynamoDB history,
     and return the resale analysis response.
     """
 
-    validate_request(payload)
-
-    target_row = build_target_row(payload)
-
-    items = query_dynamodb_history(
-        table_name=table_name,
-        target_row=target_row,
-        region_name=region_name
+    validate_request(
+        payload
     )
 
-    history_df = dynamodb_items_to_dataframe(
-        items
+    target_row = (
+        build_target_row(
+            payload
+        )
     )
 
-    response = build_resale_response(
-        target_row=target_row,
-        history_df=history_df,
-        model=model,
-        features=features,
-        evidence_rule=evidence_rule,
-        interval_margin=interval_margin,
-        top_n=5
+    items = (
+        query_dynamodb_history(
+            table_name=table_name,
+            target_row=target_row,
+            region_name=region_name
+        )
+    )
+
+    history_df = (
+        dynamodb_items_to_dataframe(
+            items
+        )
+    )
+
+    if history_df.empty:
+
+        return build_empty_response()
+
+    response = (
+        build_resale_response(
+            target_row=target_row,
+            history_df=history_df,
+            model=model,
+            features=features,
+            evidence_rule=evidence_rule,
+            interval_margin=interval_margin,
+            top_n=5
+        )
     )
 
     return response

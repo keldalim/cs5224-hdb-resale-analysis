@@ -10,9 +10,9 @@
         "method": "split_conformal_absolute_residual",
         "target_coverage": 0.9,
         "alpha": 0.1,
-        "calibration_cases": 1513,
+        "calibration_cases": 1511,
         "interval_margin": 65339.25,
         "interval_width": 130678.5,
-        "observed_calibration_coverage_pct": 90.15201586252478
+        "observed_calibration_coverage_pct": 90.13898080741231
     }
 }

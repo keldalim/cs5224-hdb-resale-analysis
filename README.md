@@ -26,14 +26,35 @@ ap-southeast-1
 
 ## Architecture
 
+### Frontend delivery
+
 ```text
-Browser
-   |
-   v
-Amazon CloudFront
-   |
-   v
+React/Vite source in web/
+        |
+        v
+npm run build
+        |
+        v
+web/dist/
+        |
+        v
 Private Amazon S3 frontend
+        |
+        v
+Amazon CloudFront
+        |
+        v
+Browser
+```
+
+The source files under `web/` are compiled by Vite into the production build under `web/dist/`.
+
+The contents of `web/dist/` are uploaded to the frontend S3 bucket and served through Amazon CloudFront.
+
+### Estimate request
+
+```text
+Browser / React frontend
    |
    v
 Amazon API Gateway
@@ -100,8 +121,7 @@ The implemented prototype includes:
 - calibrated uncertainty interval;
 - abstention when comparable evidence is insufficient;
 - asking-price interpretation;
-- web-based user interface (React, in `web/`) with a comparable-sales chart,
-  shareable result links and a side-by-side shortlist;
+- React-based web user interface with comparable-sales visualisation, shareable result links and a side-by-side shortlist;
 - automated resale-data refresh;
 - API request validation;
 - API health/status endpoint;
@@ -152,13 +172,58 @@ https://a34gvnw0hg.execute-api.ap-southeast-1.amazonaws.com/estimate
 
 The `/estimate` endpoint accepts POST requests containing the flat characteristics required for comparable retrieval and prediction.
 
-### Example Request
+### Example Requests
+
+#### Sufficient comparable evidence
+
+The following example has strong comparable evidence and produces an indicative price estimate and uncertainty interval:
+
+```json
+{
+  "month": "2026-11",
+  "town": "TAMPINES",
+  "flat_type": "4 ROOM",
+  "block": "619A",
+  "street_name": "TAMPINES ST 61",
+  "storey_range": "13 TO 15",
+  "floor_area_sqm": 93,
+  "flat_model": "Model A",
+  "lease_commence_date": 2021,
+  "remaining_lease": "94 years 00 months",
+  "asking_price": 800000
+}
+```
+
+A representative response is:
+
+```json
+{
+  "evidence_sufficient": true,
+  "evidence": {
+    "candidate_count": 922,
+    "top5_avg_score": 96.24,
+    "top5_strong_count": 5,
+    "top1_score": 97.79
+  },
+  "estimated_price": 796251.0,
+  "prediction_interval": {
+    "lower": 730911.75,
+    "upper": 861590.25
+  }
+}
+```
+
+The frontend rounds the model output for presentation, showing an indicative estimate of approximately SGD 796,000 and a likely range of approximately SGD 731,000 to SGD 862,000.
+
+#### Insufficient comparable evidence
+
+The following example has many candidate transactions, but the closest sales are not sufficiently similar to satisfy the calibrated evidence rule:
 
 ```json
 {
   "month": "2026-11",
   "town": "ANG MO KIO",
-  "flat_type": "2 ROOM",
+  "flat_type": "3 ROOM",
   "block": "323",
   "street_name": "ANG MO KIO AVE 3",
   "storey_range": "04 TO 06",
@@ -170,7 +235,27 @@ The `/estimate` endpoint accepts POST requests containing the flat characteristi
 }
 ```
 
-The response includes the evidence assessment, ranked comparable transactions and, where evidence is sufficient, the estimated price and calibrated uncertainty interval.
+A representative response is:
+
+```json
+{
+  "evidence_sufficient": false,
+  "evidence": {
+    "candidate_count": 423,
+    "top5_avg_score": 47.26,
+    "top5_strong_count": 0,
+    "top1_score": 48.42
+  },
+  "estimated_price": null,
+  "prediction_interval": null
+}
+```
+
+Although 423 candidate transactions are available, the closest matches do not satisfy the similarity thresholds. The service therefore returns the comparable evidence but withholds the price estimate and uncertainty interval.
+
+These two cases demonstrate the system's evidence-gating behaviour: a model estimate is displayed only when the available comparable transactions provide sufficiently strong support.
+
+Because the historical dataset is refreshed over time, candidate counts and similarity scores may change slightly as new transactions are added.
 
 ## API Request Validation
 
@@ -224,40 +309,23 @@ A valid request for which no historical transactions are available is not treate
 }
 ```
 
-When history is found, the response also echoes the settings it was produced with, so
-clients can label results without keeping their own copy:
+When history is found, the response also echoes the settings it was produced with, so clients can label results without keeping their own copy:
 
 | Field | Meaning |
 |---|---|
-| `evidence_rule` | The evidence thresholds applied (from `models/final/hdb_resale_calibration.json`) |
-| `interval_margin` | The ± conformal margin behind `prediction_interval` |
-| `latest_sale_month` | Latest sale month (`YYYY-MM`) in the data searched for this town and flat type |
+| `evidence_rule` | Evidence thresholds applied from `models/final/hdb_resale_calibration.json` |
+| `interval_margin` | The ± conformal margin used for `prediction_interval` |
+| `latest_sale_month` | Latest sale month (`YYYY-MM`) in the data searched for the town and flat type |
 
-Scores that cannot be computed (no candidates) are returned as `null`, never `NaN`.
-A comparable earns the 20-point same-block bonus only when it is on the same street
-as well, because block numbers repeat across streets in a town.
+Scores that cannot be computed because no candidates are found are returned as `null`, never `NaN`.
 
 ## API Validation Test
 
 `api_validation_test.py` provides a repeatable functional test of the deployed API.
 
-The test covers:
+The test sends a set of requests to the deployed `/estimate` endpoint and checks that valid and invalid inputs return the expected HTTP status codes.
 
-- valid requests;
-- missing fields;
-- empty town;
-- unsupported town;
-- empty flat type;
-- unsupported flat type;
-- negative floor area;
-- non-numeric floor area;
-- invalid lease commencement year;
-- non-numeric asking price;
-- negative asking price;
-- valid requests with no comparable history;
-- empty payloads.
-
-Current validation behaviour:
+Expected behaviour:
 
 ```text
 valid request                       200
@@ -275,11 +343,30 @@ valid but no comparables            200
 empty payload                       400
 ```
 
-Run the validation test using:
+### Running the API validation test
+
+From the project root:
 
 ```bash
 python api_validation_test.py
 ```
+
+The script sends the test requests to the deployed API Gateway endpoint and prints the result for each case.
+
+The deployed API should therefore be available before running the test.
+
+A successful run should show the expected status code for each case. For example:
+
+```text
+valid request                       PASS (200)
+missing town                        PASS (400)
+invalid town                        PASS (400)
+valid but no comparables            PASS (200)
+```
+
+If a case returns a different status code, the corresponding validation or API behaviour should be investigated.
+
+This test is intended as a lightweight end-to-end check of the deployed API rather than a model-performance evaluation.
 
 ## DynamoDB Design
 
@@ -336,6 +423,10 @@ Recency          10
 -------------------
 Total           100
 ```
+
+The 20-point same-block score is awarded only when both the block number and street name match the target flat. This avoids treating identical block numbers on different streets as the same physical block.
+
+The same-street score remains a separate 15-point component.
 
 The highest-scoring transactions are presented to the user as the strongest comparables.
 
@@ -402,7 +493,7 @@ Calibration settings:
 Nominal coverage:     90%
 Interval margin:      SGD 65,339.25
 Total interval width: SGD 130,678.50
-Calibration coverage: 90.15%
+Calibration coverage: 90.14%
 ```
 
 ## Final Evaluation
@@ -414,15 +505,15 @@ Total cases:                       2,175
 Overall MAE:                       SGD 34,564.78
 Overall median absolute % error:   3.9082%
 
-Cases accepted by evidence rule:   1,500
-Cases abstained:                     675
-Acceptance rate:                   68.97%
+Cases accepted by evidence rule:   1,498
+Cases abstained:                     677
+Acceptance rate:                   68.87%
 
-Accepted-case MAE:                 SGD 32,761.14
-Accepted median absolute % error:  3.85575%
+Accepted-case MAE:                 SGD 32,771.21
+Accepted median absolute % error:  3.8494%
 
 Nominal interval coverage:         90%
-Observed final-test coverage:      88.13%
+Observed final-test coverage:      88.12%
 ```
 
 The final October evaluation was retained as an independent final test and was not used to further tune the model or evidence thresholds.
@@ -491,70 +582,69 @@ The production API Lambda uses the model packaged inside its ECR container image
 
 ## Frontend
 
-The frontend is deployed using:
+The frontend source code is maintained under:
 
 ```text
+web/
+```
+
+The application is built using React, TypeScript and Vite.
+
+The deployment flow is:
+
+```text
+web/src/
+   |
+   v
+npm run build
+   |
+   v
+web/dist/
+   |
+   v
 Amazon S3
-+
+   |
+   v
 Amazon CloudFront
 ```
 
-The S3 origin is private and is served through CloudFront.
+`web/dist/` contains the compiled production frontend generated by Vite. These generated files are uploaded to the private S3 frontend bucket and delivered to users through CloudFront.
 
-### Web client (`web/`)
+The frontend calls `POST /estimate` and renders the Lambda response. Comparable ranking, the evidence rule and model inference remain in the backend.
 
-The main user interface is a React + TypeScript single-page app built with Vite. It calls
-`POST /estimate` and renders the Lambda's response; ranking, the evidence rule and the model
-estimate all stay in the backend.
+The frontend includes:
 
-It includes:
+- town, flat-type, storey, flat-model, block, street, floor-area, lease-year and asking-price inputs;
+- frontend validation that mirrors the API validation;
+- street-name normalisation to HDB abbreviations such as Avenue → AVE and Bukit → BT;
+- automatic calculation of the target month and remaining lease;
+- a clear result summary showing the flat characteristics, model estimate and likely range when evidence is sufficient, or a withheld state with reasons and suggested next steps when comparable evidence is insufficient;
+- evidence checks showing the observed values against the calibrated thresholds;
+- a price-position chart showing comparable resale prices, asking price, model estimate and likely range when available;
+- a responsive comparables view showing the closest past sales, their match scores, resale prices, price per sqm and differences from the target flat; the desktop layout uses a table while narrow screens use individual sale cards;
+- asking-price interpretation showing whether the asking price is below, inside or above the likely range;
+- shareable result links;
+- a browser-based shortlist for comparing multiple flats;
+- a "How it works" page explaining the comparable score, evidence rule, model and uncertainty interval;
+- responsive layouts and accessibility features including keyboard navigation, visible focus and screen-reader labels.
 
-- town, flat-type, storey, flat-model, block, street, floor-area, lease-year and
-  asking-price inputs, with validation that mirrors the API's;
-- street names converted to HDB's abbreviations (Avenue → AVE, Bukit → BT), so
-  same-street matches are not lost to spelling;
-- target month and remaining lease worked out automatically, using the same lease
-  approximation as `frontend/app.js`;
-- the model estimate and calibrated 90% interval, shown only when the API reports
-  sufficient evidence;
-- a clear withheld state when evidence is insufficient, listing which checks failed and
-  the actual values;
-- a dot chart of the five comparables against the likely range and the asking price;
-- a comparables table showing how each sale differs from the user's flat in floor area,
-  storey, remaining lease and recency;
-- a deterministic asking-price interpretation (below / inside / above the range);
-- shareable links for each check and a shortlist that compares several flats side by side,
-  stored only in the user's browser;
-- a "How it works" page explaining the scoring, evidence rule, model and interval;
-- keyboard access, visible focus, screen-reader labels, reduced-motion support and layouts
-  down to mobile widths.
+Build and deployment instructions are available in `web/README.md` and `web/DEPLOY.md`.
 
-Build and deploy instructions are in `web/README.md` and `web/DEPLOY.md`. The mapping between
-the form, the API request and the API response is documented in `web/docs/API.md`.
-
-### Lightweight client (`frontend/`)
-
-`frontend/` holds the first plain HTML/JavaScript client. It is kept as a dependency-free page
-for testing the API directly.
+The mapping between the frontend form, API request and API response is documented in `web/docs/API.md`.
 
 ## Repository Structure
 
 ```text
-web/                          React web client (main UI)
+web/                          React/Vite web client
     src/
-        api/                  API adapter (estimate.ts), client, demo data
+        api/                  API adapter, client and demo data
         components/           form, verdict, chart, table, checks, shortlist
-        lib/                  formatting, URL state, shortlist storage
-    docs/API.md               form ↔ API mapping
-    scripts/deploy.sh         build + upload to S3 + CloudFront invalidation
-    infra/frontend.yaml       optional CloudFormation for a separate site
+        lib/                  formatting, URL state and shortlist storage
+    docs/API.md               frontend ↔ API mapping
+    scripts/deploy.sh         build + S3 upload + CloudFront invalidation
+    infra/frontend.yaml       optional frontend infrastructure template
     README.md
     DEPLOY.md
-
-frontend/                     lightweight HTML/JS client for API testing
-    index.html
-    style.css
-    app.js
 
 models/
     final/
@@ -578,39 +668,138 @@ requirements.txt
 requirements-refresh.txt
 README.md
 
-.github/workflows/deploy-web.yml   optional CI deploy of web/
+.github/workflows/deploy-web.yml   optional CI deployment for web/
+```
+
+`web/dist/` is generated by `npm run build` and contains the production files deployed to S3. It is build output rather than application source code.
+
+## Backend Modules (`src/`)
+
+The Python modules under `src/` separate API handling, data retrieval, data preparation, resale-assessment logic and automated data refresh.
+
+| File | Purpose |
+|---|---|
+| `__init__.py` | Marks `src` as a Python package so the backend modules can be imported consistently. |
+| `backend_service.py` | Connects the API layer to the resale-assessment logic. It validates incoming request fields, converts the request into the feature structure required by the model, retrieves the relevant 12-month transaction history from DynamoDB, and builds the final resale response. |
+| `data_processing.py` | Contains shared data-validation and preparation functions. It validates HDB source records, standardises fields, derives features such as storey midpoint and remaining-lease months, detects genuinely new transactions during refresh, and prepares DynamoDB keys. |
+| `data_source.py` | Retrieves HDB resale transaction data from the data.gov.sg API. It supports month-based retrieval, pagination and retry handling for API rate limits. |
+| `lambda_handler.py` | Entry point for the public resale API Lambda. It loads the packaged XGBoost model and calibration settings, handles the `GET /` health check and `POST /estimate` requests, invokes the backend service, logs request outcomes, and returns appropriate HTTP responses. |
+| `refresh_handler.py` | Entry point for the scheduled data-refresh Lambda. It loads the current master dataset from S3, retrieves recent transactions from data.gov.sg, validates and prepares the data, identifies new records, updates DynamoDB and S3, and creates a dated snapshot when new data is found. |
+| `resale_service.py` | Implements the core resale-assessment logic. It selects 12-month comparable candidates, calculates comparable scores, evaluates the evidence-sufficiency rule, runs the prediction model when evidence is sufficient, creates the calibrated uncertainty interval, and prepares the ranked comparable transactions returned to the frontend. |
+
+The main API request flow is:
+
+```text
+lambda_handler.py
+        |
+        v
+backend_service.py
+        |
+        +----------------------+
+        |                      |
+        v                      v
+DynamoDB retrieval       resale_service.py
+                               |
+                               +--> comparable ranking
+                               +--> evidence assessment
+                               +--> XGBoost prediction
+                               +--> uncertainty interval
+```
+
+The automated refresh flow is:
+
+```text
+refresh_handler.py
+        |
+        +--> data_source.py
+        |      |
+        |      v
+        |   data.gov.sg
+        |
+        +--> data_processing.py
+        |
+        +--> DynamoDB
+        |
+        +--> Amazon S3
 ```
 
 ## Running the Frontend Locally
 
-### Web client
+Requires Node.js 20 or newer.
 
-Requires Node.js 20 or newer:
+From the `web/` directory:
 
 ```bash
 cd web
 npm install
-npm run dev:live   # http://localhost:5173, using the live /estimate API
-npm run dev        # http://localhost:5173 with demo data (no network needed)
-npm run build      # production build in web/dist, calling the live /estimate API
 ```
 
-`dev:live` routes API calls through Vite's local proxy, so no CORS change is needed for
-localhost.
-
-### Lightweight client
-
-From the project directory:
+To run the local frontend using the deployed AWS `/estimate` API:
 
 ```bash
-cd frontend
-python -m http.server 5500
+npm run dev:live
 ```
 
-Then open:
+This starts the Vite development server at:
 
 ```text
-http://localhost:5500
+http://localhost:5173
+```
+
+`dev:live` routes API calls through Vite's local proxy, so no CORS change is required for localhost.
+
+To run the frontend using synthetic demo/mock data without calling AWS:
+
+```bash
+npm run dev
+```
+
+To create the production build:
+
+```bash
+npm run build
+```
+
+The compiled application is generated under:
+
+```text
+web/dist/
+```
+
+The contents of this directory are the files deployed to the S3 frontend bucket.
+
+## Frontend Deployment
+
+The React/Vite frontend is built using:
+
+```bash
+npm run build
+```
+
+This generates the production files under:
+
+```text
+web/dist/
+```
+
+The contents of `web/dist/` are synchronised to the private S3 frontend bucket:
+
+```text
+s3://hdb-resale-frontend-cs5224
+```
+
+For example, from the `web/` directory:
+
+```bash
+aws s3 sync ./dist s3://hdb-resale-frontend-cs5224 --delete
+```
+
+After the files are uploaded, the CloudFront cache is invalidated so that users receive the latest frontend version.
+
+The deployed application is available at:
+
+```text
+https://d2d7utcbwtyp5z.cloudfront.net
 ```
 
 ## Container Deployment

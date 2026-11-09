@@ -51,7 +51,7 @@ describe("App (demo mode)", () => {
     expect(window.location.search).toContain("town=ANG+MO+KIO");
 
     await act(async () => button("Save to shortlist").click());
-    expect(button("Saved. View shortlist")).toBeTruthy();
+    expect(button("Saved · View shortlist")).toBeTruthy();
     expect(JSON.parse(localStorage.getItem("hdb-resale-evidence.shortlist.v1") ?? "[]")).toHaveLength(1);
   });
 

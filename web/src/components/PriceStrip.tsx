@@ -95,7 +95,8 @@ export function PriceStrip({ result, activeRank, onActive }: Props) {
   const clash = askX !== null && estimate && Math.abs(askX - estLabelLeft) < 90;
 
   return (
-    <figure className="strip" aria-labelledby="strip-cap">
+    <figure className="strip card" aria-labelledby="strip-h">
+      <h2 className="section-h" id="strip-h">Where the prices sit</h2>
       <div className="strip-legend" aria-hidden="true">
         <span className="lg lg-dot">Similar sale, actual price</span>
         {estimate && <span className="lg lg-band">Likely range</span>}
@@ -165,8 +166,8 @@ export function PriceStrip({ result, activeRank, onActive }: Props) {
         )}
       </div>
       <figcaption id="strip-cap" className="strip-cap">
-        Each dot is one similar sale at the price it actually sold for.
-        {estimate && " The estimate comes from the price model, not an average of these sales, so it won't always sit in the middle of the dots."}
+        Each dot is a similar sale at its actual price.
+        {estimate && " The estimate comes from the price model, not an average of the dots."}
         <span className="sr-only"> {summary} The table below lists every sale.</span>
       </figcaption>
     </figure>

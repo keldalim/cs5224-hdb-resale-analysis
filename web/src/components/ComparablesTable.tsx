@@ -66,8 +66,7 @@ export function ComparablesTable({ comparables, candidatesConsidered, activeRank
       <div className="section-head">
         <h2 id="comps-h" className="section-h">Similar past sales</h2>
         <p className="section-sub">
-          The {comparables.length} closest of {candidatesConsidered} sales considered, most similar first. Differences are
-          compared with your flat.
+          The {comparables.length} closest of {candidatesConsidered} sales in the past year, most similar first.
         </p>
       </div>
 
@@ -76,15 +75,12 @@ export function ComparablesTable({ comparables, candidatesConsidered, activeRank
         <table className="comps-table">
           <thead>
             <tr>
-              <th scope="col" className="num">#</th>
               <th scope="col">Address</th>
-              <th scope="col" className="num">Price</th>
               <th scope="col">Sold</th>
               <th scope="col">Storey</th>
               <th scope="col" className="num">Floor area</th>
               <th scope="col" className="num">Lease left</th>
-              <th scope="col" className="num">Per sqm</th>
-              <th scope="col" className="num">Match</th>
+              <th scope="col" className="num">Price</th>
             </tr>
           </thead>
           <tbody>
@@ -97,12 +93,13 @@ export function ComparablesTable({ comparables, candidatesConsidered, activeRank
                   onMouseEnter={() => onActive(c.rank)}
                   onMouseLeave={() => onActive(null)}
                 >
-                  <td className="num rank">{c.rank}</td>
                   <td>
-                    <span className="cell-main cell-wrap">{p.address}</span>
-                    <span className={`match match-${c.match_level}`}>{MATCH[c.match_level]}</span>
+                    <span className="cell-main"><span className="sr-only">Sale {c.rank}: </span>{p.address}</span>
+                    <span className="chips-inline">
+                      <span className={`match match-${c.match_level}`}>{MATCH[c.match_level]}</span>
+                      <span className="score" title="Match score out of 100">{p.pct}<span className="sr-only"> out of 100 match</span></span>
+                    </span>
                   </td>
-                  <td className="num price">{money(c.resale_price)}</td>
                   <td>
                     <span className="cell-main">{p.sold}</span>
                     <span className="cell-sub">{p.ago}</span>
@@ -119,12 +116,9 @@ export function ComparablesTable({ comparables, candidatesConsidered, activeRank
                     <span className="cell-main">{p.lease}</span>
                     <Diff d={p.leaseDiff} />
                   </td>
-                  <td className="num">{p.psm}</td>
                   <td className="num">
-                    <span className="sim">
-                      <span className="sim-bar" style={{ width: `${p.pct}%` }} aria-hidden="true" />
-                      <span className="sim-val">{p.pct}<span className="sr-only"> out of 100</span></span>
-                    </span>
+                    <span className="cell-main price">{money(c.resale_price)}</span>
+                    <span className="cell-sub">{p.psm} / sqm</span>
                   </td>
                 </tr>
               );
@@ -141,7 +135,7 @@ export function ComparablesTable({ comparables, candidatesConsidered, activeRank
             <li key={c.rank} className="comp-card">
               <div className="comp-card-head">
                 <span className="comp-card-price">{money(c.resale_price)}</span>
-                <span className="comp-card-match">Match {p.pct}<span className="sr-only"> out of 100</span></span>
+                <span className="score">{p.pct}<span className="sr-only"> out of 100 match</span></span>
               </div>
               <p className="comp-card-addr">
                 <span className="sr-only">Sale {c.rank}: </span>{p.address}{" "}
@@ -160,8 +154,8 @@ export function ComparablesTable({ comparables, candidatesConsidered, activeRank
       </ol>
 
       <p className="table-note">
-        Storey is reported by HDB in bands of three floors, so “3 floors higher” means one band up. Match is a score out of 100
-        for being in the same block, street and flat model, and for how close each sale is in size, lease, floor and date.
+        Differences are compared with your flat. Storey comes in bands of three floors. The match score (out of 100) rewards the
+        same block, street and flat model, and closeness in size, lease, floor and date.
       </p>
     </section>
   );

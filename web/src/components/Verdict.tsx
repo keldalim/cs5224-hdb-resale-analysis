@@ -22,11 +22,16 @@ interface Props {
   onAskingChange: (price: number | undefined) => void;
 }
 
-function subjectLine(r: AnalyseResponse["subject"]): string {
-  const where = [r.block ? `Blk ${r.block}` : "", r.street_name ? displayName(r.street_name) : "", displayName(r.town)]
-    .filter(Boolean)
-    .join(", ");
-  return `${flatTypeLabel(r.flat_type, true)} at ${where}. ${storeyLabel(r.storey_range)}, ${r.floor_area_sqm} sqm, ${years(r.remaining_lease_years)} of lease left.`;
+function subjectParts(r: AnalyseResponse["subject"]): string[] {
+  const where = [r.block ? `Blk ${r.block}` : "", r.street_name ? displayName(r.street_name) : displayName(r.town)].filter(Boolean).join(" ");
+  return [
+    flatTypeLabel(r.flat_type, true),
+    where,
+    ...(r.street_name ? [displayName(r.town)] : []),
+    storeyLabel(r.storey_range),
+    `${r.floor_area_sqm} sqm`,
+    `${years(r.remaining_lease_years)} lease left`,
+  ];
 }
 
 const POSITION_HEAD: Record<AskingPosition, string> = {
@@ -111,13 +116,15 @@ function Withheld({ result, headingRef }: { result: AnalyseResponse; headingRef?
 
   return (
     <>
-      <p className="verdict-label">No estimate for this flat</p>
-      <h2 id="verdict-h" ref={headingRef} className="verdict-withheld-title" tabIndex={-1}>Not enough similar sales for a reliable estimate</h2>
+      <h2 id="verdict-h" ref={headingRef} className="verdict-headline" tabIndex={-1}>
+        <span className="pos-badge pos-withheld">No estimate</span>
+        <span>Not enough similar sales for a reliable estimate</span>
+      </h2>
       <p className="verdict-withheld-body">{evidence.summary}</p>
 
       {pos && (
-        <div className="verdict-unadjusted">
-          <p className="verdict-unadjusted-label">What the sales found do show</p>
+        <div className="callout pos-withheld">
+          <p className="callout-label">What the sales found do show</p>
           <p>
             {pos.lower === pos.total
               ? `The asking price of ${money(asking!)} is higher than all ${pos.total} of the closest sales found.`
@@ -129,7 +136,7 @@ function Withheld({ result, headingRef }: { result: AnalyseResponse; headingRef?
         </div>
       )}
 
-      <p className="verdict-withheld-body">What you can do next:</p>
+      <p className="verdict-next-h">What you can do next</p>
       <ul className="verdict-next">
         {comparables.length > 0 && <li>Compare the sales listed below with your flat yourself.</li>}
         <li>
@@ -152,38 +159,43 @@ export function Verdict({ result, headingRef, saved, shortlistFull, onSave, onVi
   const strong = result.comparables.filter((c) => c.similarity * 100 >= EVIDENCE_RULE.strong_score_threshold).length;
 
   return (
-    <section className={`verdict ${tone}`} aria-labelledby="verdict-h">
-      <p className="verdict-subject">{subjectLine(subject)}</p>
+    <section className={`verdict card ${tone}`} aria-labelledby="verdict-h">
+      <ul className="subject-chips" aria-label="The flat checked">
+        {subjectParts(subject).map((p) => <li key={p}>{p}</li>)}
+      </ul>
 
       {estimate ? (
         <>
-          {asking ? (
-            <>
-              <h2 id="verdict-h" ref={headingRef} tabIndex={-1} className="verdict-headline">
+          <h2 id="verdict-h" ref={headingRef} tabIndex={-1} className="verdict-headline">
+            {asking ? (
+              <>
                 <span className={`pos-badge pos-${asking.position}`}>{POSITION_BADGE[asking.position]}</span>
-                {verdictHeading(asking, estimate.low, estimate.high)}
-              </h2>
-              <p className="verdict-label">Indicative estimate from the price model</p>
-            </>
-          ) : (
-            <h2 id="verdict-h" ref={headingRef} tabIndex={-1} className="verdict-label verdict-label-h">Indicative estimate from the price model</h2>
-          )}
-          <p className="verdict-figure">{money(estimate.point)}</p>
-          <p className="verdict-range">
-            Likely between <strong>{money(estimate.low)}</strong> and <strong>{money(estimate.high)}</strong>.
-            <span className="verdict-range-note">
-              In testing, about {Math.round(estimate.interval_level * 100)} in 100 actual sale prices fell inside ranges like this.
-            </span>
-          </p>
-          <p className="verdict-basis">
-            Evidence checks passed{strong > 0 ? `: ${strong} of the 5 closest sales are strong matches` : ""}.
-          </p>
+                <span>{verdictHeading(asking, estimate.low, estimate.high)}</span>
+              </>
+            ) : (
+              <span>Indicative price for this flat</span>
+            )}
+          </h2>
+
+          <div className="verdict-stats">
+            <div className="stat">
+              <p className="stat-label">Model estimate</p>
+              <p className="stat-value stat-value-xl">{money(estimate.point)}</p>
+            </div>
+            <div className="stat">
+              <p className="stat-label">Likely range</p>
+              <p className="stat-value">{money(estimate.low)} – {money(estimate.high)}</p>
+              <p className="stat-note">About {Math.round(estimate.interval_level * 100)} in 100 sales fell inside ranges like this in testing.</p>
+            </div>
+          </div>
+
           {asking ? (
-            <p className="verdict-asking">
-              {askingDetail(asking)} <AskingInline key={`c${asking.asking_price}`} current={asking.asking_price} onChange={onAskingChange} />
-            </p>
+            <div className={`callout pos-${asking.position}`}>
+              <p>{askingDetail(asking)}</p>
+              <AskingInline key={`c${asking.asking_price}`} current={asking.asking_price} onChange={onAskingChange} />
+            </div>
           ) : (
-            <div className="verdict-asking is-empty">
+            <div className="callout is-empty">
               <p>See where an asking price sits against this range.</p>
               <AskingInline key="new" onChange={onAskingChange} />
             </div>
@@ -193,25 +205,32 @@ export function Verdict({ result, headingRef, saved, shortlistFull, onSave, onVi
         <Withheld result={result} headingRef={headingRef} />
       )}
 
-      <div className="verdict-actions">
-        {saved ? (
-          <button type="button" className="btn-secondary" onClick={onViewShortlist}>Saved. View shortlist</button>
-        ) : shortlistFull ? (
-          <button type="button" className="btn-secondary" onClick={onViewShortlist}>
-            Shortlist full ({SHORTLIST_LIMIT}). Remove one
+      <div className="verdict-foot">
+        <div className="verdict-actions">
+          {saved ? (
+            <button type="button" className="btn-secondary" onClick={onViewShortlist}>Saved · View shortlist</button>
+          ) : shortlistFull ? (
+            <button type="button" className="btn-secondary" onClick={onViewShortlist}>
+              Shortlist full ({SHORTLIST_LIMIT}) · Remove one
+            </button>
+          ) : (
+            <button type="button" className="btn-secondary" onClick={onSave}>Save to shortlist</button>
+          )}
+          <button type="button" className="btn-quiet" onClick={onCopyLink}>
+            {copied ? "Link copied" : "Copy link"}
           </button>
-        ) : (
-          <button type="button" className="btn-secondary" onClick={onSave}>Save to shortlist</button>
+        </div>
+        {estimate && (
+          <p className="verdict-basis">
+            <span aria-hidden="true">✓</span> Evidence checks passed{strong > 0 ? ` · ${strong} of 5 strong matches` : ""}
+          </p>
         )}
-        <button type="button" className="btn-quiet" onClick={onCopyLink}>
-          {copied ? "Link copied" : "Copy link to this check"}
-        </button>
       </div>
-      {subject.asking_price ? <p className="verdict-fineprint">The link includes the asking price.</p> : null}
 
       <p className="verdict-fineprint">
-        {result.data_month ? <>Based on HDB resale transactions up to {monthLabel(result.data_month)}. </> : <>Based on HDB resale transactions. </>}
-        An indicative guide, not a valuation. It can't see renovation, condition or the exact floor.
+        {result.data_month ? `Sales up to ${monthLabel(result.data_month)}. ` : ""}
+        An indicative guide, not a valuation: it can't see renovation, condition or the exact floor.
+        {subject.asking_price ? " Shared links include the asking price." : ""}
       </p>
     </section>
   );

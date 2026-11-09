@@ -183,7 +183,10 @@ export function SearchForm({ meta, initial, validateInitial, busy, serverErrors,
         submit(s);
       }}
     >
-      <h2 className="search-title" id={`${id}-title`}>Describe the flat</h2>
+      <div className="search-head">
+        <h2 className="search-title" id={`${id}-title`}>Describe the flat</h2>
+        <p className="search-sub">All from the HDB listing.</p>
+      </div>
 
       {showSummary && errorList.length > 1 && (
         <div className="error-summary" ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby={`${id}-sum-h`}>
@@ -248,18 +251,14 @@ export function SearchForm({ meta, initial, validateInitial, busy, serverErrors,
         </div>
       </div>
       <p className="help help-tight" id={`${id}-street-help`} aria-live="polite">
-        {showMatched ? (
-          <>Will be matched as <strong>{normalised}</strong>, the way HDB writes it.</>
-        ) : (
-          "As on the listing, e.g. Ang Mo Kio Ave 10. Words like Avenue and Street are shortened for you."
-        )}
+        {showMatched ? <>Matched as <strong>{normalised}</strong></> : "As on the listing, e.g. Ang Mo Kio Ave 10"}
       </p>
 
       <div className="row">
         <div className="field">
           <label htmlFor={`${id}-storey_range`}>Storey</label>
           <select {...fieldProps("storey_range")} value={s.storey_range} onChange={(e) => set("storey_range", e.target.value)}>
-            <option value="">Choose floors</option>
+            <option value="">Choose</option>
             {meta.storey_ranges.map((r) => <option key={r} value={r}>{storeyLabel(r)}</option>)}
           </select>
           {err("storey_range")}
@@ -276,12 +275,10 @@ export function SearchForm({ meta, initial, validateInitial, busy, serverErrors,
             <span className="suffix">sqm</span>
           </div>
           {err("floor_area_sqm")}
-          {typical && (
+          {typical && s.floor_area_sqm === "" && (
             <p className="help" id={`${id}-area-help`}>
-              Typical {flatTypeLabel(s.flat_type)}: about {typical} sqm.{" "}
-              {s.floor_area_sqm === "" && (
-                <button type="button" className="link-btn" onClick={() => set("floor_area_sqm", String(typical))}>Use {typical}</button>
-              )}
+              Typical: {typical} sqm ·{" "}
+              <button type="button" className="link-btn" onClick={() => set("floor_area_sqm", String(typical))}>Use it</button>
             </p>
           )}
         </div>
@@ -290,12 +287,11 @@ export function SearchForm({ meta, initial, validateInitial, busy, serverErrors,
       <div className="row">
         <div className="field">
           <label htmlFor={`${id}-flat_model`}>Flat model</label>
-          <select {...fieldProps("flat_model", `${id}-model-help`)} value={s.flat_model} onChange={(e) => set("flat_model", e.target.value)}>
-            <option value="">Choose a model</option>
+          <select {...fieldProps("flat_model")} value={s.flat_model} onChange={(e) => set("flat_model", e.target.value)}>
+            <option value="">Choose</option>
             {meta.flat_models.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
           {err("flat_model")}
-          <p className="help" id={`${id}-model-help`}>On the listing or the HDB Flat Portal.</p>
         </div>
         <div className="field">
           <label htmlFor={`${id}-lease_commence_year`}>Lease start year</label>
@@ -321,7 +317,7 @@ export function SearchForm({ meta, initial, validateInitial, busy, serverErrors,
           />
         </div>
         {err("asking_price")}
-        <p className="help" id={`${id}-asking-help`}>Add it to see where the price sits against similar sales. 625000 or 625k both work.</p>
+        <p className="help" id={`${id}-asking-help`}>To see where it sits against similar sales. “625k” works.</p>
       </div>
 
       <button className="btn-primary" type="submit" aria-disabled={busy || undefined} onClick={(e) => { if (busy) e.preventDefault(); }}>
@@ -330,18 +326,21 @@ export function SearchForm({ meta, initial, validateInitial, busy, serverErrors,
 
       <div className="examples">
         <p className="examples-title">Or try an example</p>
-        {EXAMPLES.map((ex) => (
-          <button
-            key={ex.label}
-            type="button"
-            className="example"
-            aria-disabled={busy || undefined}
-            onClick={() => { if (busy) return; setS(ex.state); setErrors({}); setShowSummary(false); submit(ex.state); }}
-          >
-            <span className="example-name">{ex.label}</span>
-            <span className="example-hint">{ex.hint}</span>
-          </button>
-        ))}
+        <div className="example-list">
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex.label}
+              type="button"
+              className="example"
+              title={ex.hint}
+              aria-disabled={busy || undefined}
+              onClick={() => { if (busy) return; setS(ex.state); setErrors({}); setShowSummary(false); submit(ex.state); }}
+            >
+              {ex.label}
+              <span className="sr-only">: {ex.hint}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </form>
   );

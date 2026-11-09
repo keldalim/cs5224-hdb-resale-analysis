@@ -1,0 +1,74 @@
+# Build, test and deploy the web client (web/).
+# - Pull requests: type-check, lint, test and build (no AWS access needed).
+# - Pushes to main: the same checks, then deploy to S3 + CloudFront.
+#
+# Repository settings > Secrets and variables > Actions:
+#   Variables: AWS_REGION (ap-southeast-1), and either
+#              BUCKET + DISTRIBUTION_ID (team site) or STACK_NAME (own stack).
+#              The build uses the team API by default (web/src/config.ts).
+#   Secrets:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  (and AWS_SESSION_TOKEN if your
+#              account issues temporary credentials, e.g. AWS Academy Learner Lab;
+#              those expire, so refresh the secrets before each deploy)
+name: Web client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "models/final/hdb_resale_calibration.json" # the build reads the evidence rule from here
+      - ".github/workflows/deploy-web.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - "models/final/hdb_resale_calibration.json"
+      - ".github/workflows/deploy-web.yml"
+  workflow_dispatch:
+
+# Never run two deploys at once; a newer push cancels an older PR check.
+concurrency:
+  group: web-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+  deploy:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+      - name: Build and deploy
+        working-directory: web
+        env:
+          BUCKET: ${{ vars.BUCKET }}
+          DISTRIBUTION_ID: ${{ vars.DISTRIBUTION_ID }}
+          VITE_FEEDBACK_URL: ${{ vars.VITE_FEEDBACK_URL }}
+          STACK_NAME: ${{ vars.STACK_NAME || 'hdb-resale-frontend' }}
+        run: bash scripts/deploy.sh

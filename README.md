@@ -100,7 +100,8 @@ The implemented prototype includes:
 - calibrated uncertainty interval;
 - abstention when comparable evidence is insufficient;
 - asking-price interpretation;
-- web-based user interface;
+- web-based user interface (React, in `web/`) with a comparable-sales chart,
+  shareable result links and a side-by-side shortlist;
 - automated resale-data refresh;
 - API request validation;
 - API health/status endpoint;
@@ -222,6 +223,19 @@ A valid request for which no historical transactions are available is not treate
   "prediction_interval": null
 }
 ```
+
+When history is found, the response also echoes the settings it was produced with, so
+clients can label results without keeping their own copy:
+
+| Field | Meaning |
+|---|---|
+| `evidence_rule` | The evidence thresholds applied (from `models/final/hdb_resale_calibration.json`) |
+| `interval_margin` | The ± conformal margin behind `prediction_interval` |
+| `latest_sale_month` | Latest sale month (`YYYY-MM`) in the data searched for this town and flat type |
+
+Scores that cannot be computed (no candidates) are returned as `null`, never `NaN`.
+A comparable earns the 20-point same-block bonus only when it is on the same street
+as well, because block numbers repeat across streets in a town.
 
 ## API Validation Test
 
@@ -487,31 +501,57 @@ Amazon CloudFront
 
 The S3 origin is private and is served through CloudFront.
 
-The interface includes:
+### Web client (`web/`)
 
-- town dropdown;
-- flat-type dropdown;
-- storey-range dropdown;
-- flat-model dropdown;
-- block and street inputs;
-- floor-area input;
-- lease commencement year;
-- remaining lease years and months;
-- helper function to estimate remaining lease from lease year;
-- asking-price input;
-- comparable evidence summary;
-- ranked comparable transactions;
-- predicted price;
-- uncertainty interval;
-- asking-price interpretation;
-- explanatory guidance and disclaimer.
+The main user interface is a React + TypeScript single-page app built with Vite. It calls
+`POST /estimate` and renders the Lambda's response; ranking, the evidence rule and the model
+estimate all stay in the backend.
 
-The asking-price interpretation is deterministic and rule-based rather than LLM-generated.
+It includes:
+
+- town, flat-type, storey, flat-model, block, street, floor-area, lease-year and
+  asking-price inputs, with validation that mirrors the API's;
+- street names converted to HDB's abbreviations (Avenue → AVE, Bukit → BT), so
+  same-street matches are not lost to spelling;
+- target month and remaining lease worked out automatically, using the same lease
+  approximation as `frontend/app.js`;
+- the model estimate and calibrated 90% interval, shown only when the API reports
+  sufficient evidence;
+- a clear withheld state when evidence is insufficient, listing which checks failed and
+  the actual values;
+- a dot chart of the five comparables against the likely range and the asking price;
+- a comparables table showing how each sale differs from the user's flat in floor area,
+  storey, remaining lease and recency;
+- a deterministic asking-price interpretation (below / inside / above the range);
+- shareable links for each check and a shortlist that compares several flats side by side,
+  stored only in the user's browser;
+- a "How it works" page explaining the scoring, evidence rule, model and interval;
+- keyboard access, visible focus, screen-reader labels, reduced-motion support and layouts
+  down to mobile widths.
+
+Build and deploy instructions are in `web/README.md` and `web/DEPLOY.md`. The mapping between
+the form, the API request and the API response is documented in `web/docs/API.md`.
+
+### Lightweight client (`frontend/`)
+
+`frontend/` holds the first plain HTML/JavaScript client. It is kept as a dependency-free page
+for testing the API directly.
 
 ## Repository Structure
 
 ```text
-frontend/
+web/                          React web client (main UI)
+    src/
+        api/                  API adapter (estimate.ts), client, demo data
+        components/           form, verdict, chart, table, checks, shortlist
+        lib/                  formatting, URL state, shortlist storage
+    docs/API.md               form ↔ API mapping
+    scripts/deploy.sh         build + upload to S3 + CloudFront invalidation
+    infra/frontend.yaml       optional CloudFormation for a separate site
+    README.md
+    DEPLOY.md
+
+frontend/                     lightweight HTML/JS client for API testing
     index.html
     style.css
     app.js
@@ -537,9 +577,28 @@ Dockerfile.refresh
 requirements.txt
 requirements-refresh.txt
 README.md
+
+.github/workflows/deploy-web.yml   optional CI deploy of web/
 ```
 
 ## Running the Frontend Locally
+
+### Web client
+
+Requires Node.js 20 or newer:
+
+```bash
+cd web
+npm install
+npm run dev:live   # http://localhost:5173, using the live /estimate API
+npm run dev        # http://localhost:5173 with demo data (no network needed)
+npm run build      # production build in web/dist, calling the live /estimate API
+```
+
+`dev:live` routes API calls through Vite's local proxy, so no CORS change is needed for
+localhost.
+
+### Lightweight client
 
 From the project directory:
 
@@ -623,6 +682,7 @@ AI tools were used to support activities including:
 
 - code review;
 - debugging;
+- design and implementation of the React web client in `web/`;
 - implementation refinement;
 - test development;
 - documentation drafting.

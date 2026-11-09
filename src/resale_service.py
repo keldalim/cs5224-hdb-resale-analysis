@@ -43,6 +43,16 @@ def get_comparable_candidates(
     return candidates
 
 
+def _finite_or_none(value):
+    """
+    float(value), or None for NaN/inf so the JSON stays valid.
+    """
+
+    value = float(value)
+
+    return value if np.isfinite(value) else None
+
+
 def score_comparables(
     target_row,
     candidates
@@ -53,9 +63,11 @@ def score_comparables(
 
     scored = candidates.copy()
 
+    # Block numbers repeat across streets in a town (e.g. Blk 406 exists on
+    # several streets), so a "same block" match also requires the same street.
     scored["same_block"] = (
-        scored["block"]
-        == target_row["block"]
+        (scored["block"] == target_row["block"])
+        & (scored["street_name"] == target_row["street_name"])
     ).astype(int)
 
     scored["same_street"] = (
@@ -333,9 +345,30 @@ def build_resale_response(
     # Base response
     # ------------------------------------------
 
+    latest_month = history_df["month"].max()
+
     response = {
         "evidence_sufficient":
             bool(evidence_sufficient),
+
+        # Echo the rule and interval this response was produced with, so
+        # clients label the checks from the server instead of a copy.
+        "evidence_rule":
+            {
+                key: float(value)
+                for key, value in evidence_rule.items()
+            },
+
+        "interval_margin":
+            float(interval_margin),
+
+        # Latest sale month in the data searched for this town and flat type.
+        "latest_sale_month":
+            (
+                latest_month.strftime("%Y-%m")
+                if pd.notna(latest_month)
+                else None
+            ),
 
         "evidence":
             {
@@ -347,7 +380,7 @@ def build_resale_response(
                     ),
 
                 "top5_avg_score":
-                    float(
+                    _finite_or_none(
                         evidence_summary[
                             "top5_avg_score"
                         ]
@@ -361,7 +394,7 @@ def build_resale_response(
                     ),
 
                 "top1_score":
-                    float(
+                    _finite_or_none(
                         evidence_summary[
                             "top1_score"
                         ]

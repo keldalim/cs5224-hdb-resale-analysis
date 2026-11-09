@@ -325,24 +325,6 @@ Scores that cannot be computed because no candidates are found are returned as `
 
 The test sends a set of requests to the deployed `/estimate` endpoint and checks that valid and invalid inputs return the expected HTTP status codes.
 
-Expected behaviour:
-
-```text
-valid request                       200
-missing town                        400
-empty town                          400
-invalid town                        400
-empty flat type                     400
-invalid flat type                   400
-invalid floor area                  400
-non-numeric floor area              400
-invalid lease commencement year     400
-non-numeric asking price            400
-negative asking price               400
-valid but no comparables            200
-empty payload                       400
-```
-
 ### Running the API validation test
 
 From the project root:
@@ -358,10 +340,19 @@ The deployed API should therefore be available before running the test.
 A successful run should show the expected status code for each case. For example:
 
 ```text
-valid request                       PASS (200)
-missing town                        PASS (400)
-invalid town                        PASS (400)
-valid but no comparables            PASS (200)
+valid request                       200
+missing town                        400
+empty town                          400
+invalid town                        400
+empty flat type                     400
+invalid flat type                   400
+invalid floor area                  400
+non-numeric floor area              400
+invalid lease commencement year     400
+non-numeric asking price            400
+negative asking price               400
+valid but no comparables            200
+empty payload                       400
 ```
 
 If a case returns a different status code, the corresponding validation or API behaviour should be investigated.

@@ -297,8 +297,8 @@ export default function App() {
             <div className="intro">
               <h1 className="intro-h" ref={pageHeadingRef} tabIndex={-1}>Is the asking price backed by real sales?</h1>
               <p className="intro-p">
-                Compare a resale flat with the most similar HDB sales. You'll get an estimate only when there's enough
-                evidence for one.
+                Compare a resale flat with the most similar recent HDB sales. You get an estimate only when the evidence
+                supports one.
               </p>
             </div>
 
@@ -429,23 +429,22 @@ function Loading({ slow }: { slow: boolean }) {
 }
 
 function Placeholder() {
+  const steps = [
+    ["Describe the flat", "Town, type, address, size and lease, straight from the listing."],
+    ["See the closest sales", "The five most similar recent sales, with every difference spelled out."],
+    ["Get an honest answer", "An estimate and likely range only when the evidence holds, and where the asking price sits."],
+  ];
   return (
-    <div className="placeholder">
-      <h2 className="placeholder-h">What you'll see</h2>
-      <dl className="placeholder-list">
-        <div>
-          <dt>Where the asking price sits</dt>
-          <dd>Inside, above or below the likely range, so you know what to ask the seller or agent about.</dd>
-        </div>
-        <div>
-          <dt>An estimate, only when the evidence holds</dt>
-          <dd>A price estimate and likely range when there are enough close, recent sales. Otherwise, a clear note on what's missing.</dd>
-        </div>
-        <div>
-          <dt>The closest similar sales</dt>
-          <dd>Ranked by street, size, floor, lease and date, with each difference spelled out.</dd>
-        </div>
-      </dl>
+    <div className="placeholder card">
+      <h2 className="placeholder-h">How a check works</h2>
+      <ol className="steps">
+        {steps.map(([t, d], i) => (
+          <li key={t}>
+            <span className="step-n" aria-hidden="true">{i + 1}</span>
+            <span><strong>{t}</strong><span className="step-d">{d}</span></span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

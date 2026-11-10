@@ -297,7 +297,7 @@ snapshots/
 models/
 ```
 
-The bucket uses S3 versioning and SSE-S3 encryption.
+The bucket uses S3 versioning and SSE-S3 encryption. S3 versioning provides recovery of previous object versions, while dated snapshots provide explicit historical copies for easier comparison and reproducibility.
 
 The production API uses the model packaged inside its Lambda container image. The model is not downloaded from S3 during each request.
 

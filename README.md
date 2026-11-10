@@ -1,12 +1,12 @@
-# CS5224 HDB Resale Price Insights
+# CS5224 HDB Resale Price Analysis Platform
 
-Cloud-based HDB resale decision-support prototype developed for CS5224 Cloud Computing.
+Cloud-based HDB resale decision-support prototype.
 
 ## Overview
 
 The platform helps users assess an HDB resale asking price using recent completed resale transactions.
 
-Users enter the characteristics of a target flat and an asking price. The system retrieves and ranks comparable transactions, assesses the strength of the available evidence and, when sufficient, produces an indicative XGBoost resale-price estimate with an uncertainty interval.
+Users enter the characteristics of a target flat and an optional asking price. The system retrieves and ranks comparable transactions, assesses the strength of the available evidence and, when sufficient, produces a XGBoost resale-price estimate with an uncertainty interval.
 
 If the comparable evidence is insufficient, the service withholds the estimate rather than presenting an unsupported result.
 
@@ -273,7 +273,7 @@ The refresh process:
 1. Reads the current master dataset from S3.
 2. Retrieves recent resale transactions from data.gov.sg.
 3. Validates and prepares the records.
-4. Detects genuinely new transactions using occurrence-aware comparison.
+4. Detects new transactions using occurrence aware comparison.
 5. Writes new records to DynamoDB.
 6. Updates the S3 master dataset and creates a dated snapshot when new records are detected.
 7. Makes no database or S3 changes when no new records are detected.

@@ -450,4 +450,4 @@ The current Lambda concurrency limit affected reliability at 20 concurrent users
 
 ## AI Use
 
-AI tools supported code review, debugging, test-case development and documentation drafting. All AI-suggested material was reviewed and adapted by team members before use. AI support also helped identify validation gaps and improve explanations of system performance, evidence sufficiency and uncertainty. The architecture, model choices, evaluation protocol and final conclusions were determined by the team.
+AI tools supported code review, debugging, test-case development and documentation drafting. AI support helped the team better understand and communicate issues such as model validation, uncertainty calibration, system bottlenecks and the distinction between application limitations and cloud-service quotas. The architecture, model choices, evaluation protocol and final conclusions were determined by the team.

@@ -376,7 +376,7 @@ README.md
 
 ### Backend modules
 
-`notebooks/ contains the offline data preparation, refresh testing, model selection, evidence and interval calibration, and final evaluation workflow used to develop and validate the deployed system.
+notebooks/ contains the offline data preparation, refresh testing, model selection, evidence and interval calibration, and final evaluation workflow used to develop and validate the deployed system.
 
 - `src/lambda_handler.py` — API Lambda entry point; loads the model and calibration settings and handles API responses.
 - `src/backend_service.py` — validates requests, prepares target features and queries DynamoDB.

@@ -340,16 +340,17 @@ web/docs/API.md
 ## Repository Structure
 
 ```text
-web/                          React/Vite frontend
-    src/                      frontend source
-    docs/API.md               frontend/API mapping
-    README.md                 frontend setup
-    DEPLOY.md                 frontend deployment
-
 models/
     final/
         hdb_resale_xgboost_calibrated.joblib
         hdb_resale_calibration.json
+
+notebook/
+    01_data_preparation.ipynb
+    02_data_refresh_test.ipynb
+    03_model_selection.ipynb
+    04_evidence_interval_calibration.ipynb
+    05_final_evaluation.ipynb
 
 src/
     backend_service.py
@@ -358,6 +359,12 @@ src/
     lambda_handler.py
     refresh_handler.py
     resale_service.py
+
+web/                          React/Vite frontend
+    src/                      frontend source
+    docs/API.md               frontend/API mapping
+    README.md                 frontend setup
+    DEPLOY.md                 frontend deployment
 
 api_validation_test.py
 Dockerfile
@@ -368,6 +375,8 @@ README.md
 ```
 
 ### Backend modules
+
+`notebooks/ contains the offline data preparation, refresh testing, model selection, evidence and interval calibration, and final evaluation workflow used to develop and validate the deployed system.
 
 - `src/lambda_handler.py` — API Lambda entry point; loads the model and calibration settings and handles API responses.
 - `src/backend_service.py` — validates requests, prepares target features and queries DynamoDB.
